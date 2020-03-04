@@ -36,15 +36,19 @@ irishSubset = irishRaw %>%
 # let's fix money columns to be actual numbers
 # this could probably be made into a function. kind of enraging to do three separate mutates
 irishMoney = irishSubset %>%
-  mutate_at(c("price", "security_deposit", "cleaning_fee"), formatMoney)
+  mutate_at(c("price", "security_deposit", "cleaning_fee", "extra_people"), formatMoney)
    
-#Let's do some sanity checks
-# PRICE
-table(irishMoney$price, useNA = "ifany")
-# let's remove ones over $999 and those for $0
+#### Let's do some sanity checks ####
+# let's remove prices over $999 and those for $0
+# remove cleaning fees greater than 300
+# security deposit over 1000
+# extra people seems fine
+# remove those WITHOUT availability
 irishSane = irishMoney %>%
-  filter(0 < price & price < 9999)
+  filter(0 < price & price < 9999,
+         cleaning_fee > 300,
+         security_deposit > 1000,
+         availability_365 != 0)
 
-
-
-
+# PRICE
+table(irishMoney$availability_365, useNA = "ifany")
