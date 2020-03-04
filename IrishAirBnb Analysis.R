@@ -43,12 +43,9 @@ irishMoney = irishSubset %>%
 # remove cleaning fees greater than 300
 # security deposit over 1000
 # extra people seems fine
-# remove those WITHOUT availability
+# remove those WITHOUT availability... but this removes close to 6k rows. probably not going to do it
 irishSane = irishMoney %>%
   filter(0 < price & price < 9999,
-         cleaning_fee > 300,
-         security_deposit > 1000,
-         availability_365 != 0)
+         cleaning_fee < 300,
+         security_deposit < 1000)
 
-# PRICE
-table(irishMoney$availability_365, useNA = "ifany")
