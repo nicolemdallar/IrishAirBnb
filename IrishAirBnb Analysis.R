@@ -15,6 +15,9 @@ tmp = sapply(packages, function(p){
 baseDir = normalizePath("/Users/Nicole/Documents/GitHub/IrishAirBnb")
 irishRaw = read.csv(file = paste0(baseDir, "/longlistings.csv"), strip.white = T, stringsAsFactors = F)
 
+# Load functions from functions file
+source(paste0(baseDir, "/Irish_functions.R"))
+
 # Initial data exploration
 class(irishRaw) #data.frame, good
 colnames(irishRaw) #some seem useful, some boring
@@ -33,29 +36,15 @@ irishSubset = irishRaw %>%
 # let's fix money columns to be actual numbers
 # this could probably be made into a function. kind of enraging to do three separate mutates
 irishMoney = irishSubset %>%
-  mutate(newPrice1 = str_replace(price, pattern = ",", replacement = ""),
-         newCleaningFee1 = str_replace(cleaning_fee, pattern = ",", replacement = ""),
-         newSecurityDep1 = str_replace(security_deposit, pattern = ",", replacement = "")) %>%
-  mutate(newPrice2 = str_extract(newPrice1, pattern = "[0-9]*\\."),
-         newCleaningFee2 = str_extract(newCleaningFee1, pattern = "[0-9]*\\."),
-         newSecurityDep2 = str_extract(newSecurityDep1, pattern = "[0-9]*\\.")) %>%
-  mutate(price_fixed = str_replace(newPrice2, pattern = ".", replacement = ""),
-         cleaning_fee_fixed = str_replace(newCleaningFee2, pattern = ".", replacement = ""),
-         security_deposit_fixed = str_replace(newSecurityDep2, pattern = ".", replacement = ""))
- 
-pricenew = str_extract(irishMoney$price, pattern = "[0-9]*\\.")
+  mutate_at(c("price", "security_deposit", "cleaning_fee"), formatMoney)
    
 #Let's do some sanity checks
 # PRICE
-table(irish$price, useNA = "ifany") #ok let's remove $0 and remove the ones over $1000 without reviews
-# annoyingly there are commas. let's remove them. maybe try string extract instead?
-irish$price1 = str_replace(irish$price, pattern = ",", replacement = "")
-irish$price2 = str_replace(irish$price1, pattern = "\\$", replacement = "")
-irish$price3 = str_replace(irish$price2, pattern = "\\.00", replacement = "")
-irish$price = as.numeric(irish$price3)
-# ok let's remove ones over 1000 that will host less than 10 people, and those that charge $0
-irish = irish[!(irish$price > 1000 & irish$accommodates > 10),]
-irish = irish[irish$price != 0,]
+table(irishMoney$price, useNA = "ifany")
+# let's remove ones over $999 and those for $0
+irishSane = irishMoney %>%
+  filter(0 < price & price < 9999)
 
-# 
+
+
 
