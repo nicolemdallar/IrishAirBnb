@@ -31,7 +31,7 @@ irishSubset = irishRaw %>%
   select(-listing_url, -scrape_id, -thumbnail_url, -medium_url, -picture_url, -xl_picture_url, -host_url, -host_thumbnail_url,
          -host_picture_url, -latitude, -license, -requires_license, -weekly_price, -monthly_price, -square_feet, -jurisdiction_names,
          -longitude, -is_location_exact, -calendar_last_scraped, -country, -country_code, -availability_30, -availability_60,
-         -availability_90)
+         -availability_90, -host_total_listings_count)
 
 # let's fix money columns to be actual numbers
 # this could probably be made into a function. kind of enraging to do three separate mutates
