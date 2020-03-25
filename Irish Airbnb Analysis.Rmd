@@ -1,0 +1,145 @@
+---
+title: "Ireland AirBnB Analysis"
+output: html_notebook
+author: Nicole Dallar
+---
+
+Ireland! The Emerald Isle... Éire... The Island of Saints... Whatever you choose to call it, this beautiful land is beautiful and worthy of a visit.
+
+I spent a semester abroad at University College Dublin during my junior year of undergrad, and I have always wanted to take another visit there now that I am employed and able to afford more than Supermac's! (But I refuse to listen to any trash talking about Milano's pizza.)
+
+In the interest of my Irish vacation fantasy, I chose to analyze the most recent Airbnb data from their listings in Ireland in order to inform my decision of where to stay.
+
+I want to travel on the cheaper side (hey, I'm being responsible) but definitely not as cheap as I did while an undergrad. I'd like to stay in Dublin, but I am open to staying in another county if I can get much better accomodations for the same price.
+
+I'd also like to know which regions of Ireland have the highest ratings among Airbnb tourists. If there are any significantly better rated areas, it might be worth a visit to that area.
+
+------
+
+I'll start by loading in some R packages that will be used throughout the project.
+
+```{r}
+packages = c("dplyr", "ggplot2", "tidyr", "stringr")
+tmp = sapply(packages, function(p){
+  if (!require(p, character.only = T)){
+    install.packages(p)
+    library(p, character.only = T)
+  }
+})
+```
+
+Then I will set my working directory to my GitHub repo and read in the raw data from Airbnb.
+
+```{r}
+baseDir = normalizePath("/Users/Nicole/Documents/GitHub/IrishAirBnb")
+irishRaw = read.csv(file = paste0(baseDir, "/longlistings.csv"), strip.white = T, stringsAsFactors = F, na.strings=c("","NA"))
+```
+
+Throughout this project, I found I needed to write a few custom functions. To save space and save the reader time, I have these functions written in a separate R file called "Irish_functions.R" and will source these functions into my current workspace so I can use them on the data.
+
+```{r}
+source(paste0(baseDir, "/Irish_functions.R"))
+```
+
+First I will inspect the Airbnb data (called "irishRaw") to make sure everything looks correct.
+
+```{r}
+paste0("The class of the raw data is ", class(irishRaw))
+paste0("The raw data has ", dim(irishRaw)[1], " rows and ", dim(irishRaw)[2], " columns.")
+```
+
+IrishRaw is definitely a dataframe, and there are certainly many columns that might help me plan my fake vacation.
+
+I'm going to remove some columns that I don't care about, such as URLs to images used on the listing's page or what country the listing is in (since they are all from Ireland). I also removed data that was missing values more than 30% of the listings.
+
+```{r}
+irishRaw %>% summarize_all(funs(sum(is.na(.)) / length(.)))
+```
+
+```{r}
+irishSubset = irishRaw %>%
+  select(-listing_url, -scrape_id, -thumbnail_url, -medium_url, -picture_url, -xl_picture_url, -host_url, -host_thumbnail_url,
+         -host_picture_url, -latitude, -license, -requires_license, -weekly_price, -monthly_price, -square_feet, -jurisdiction_names,
+         -longitude, -is_location_exact, -calendar_last_scraped, -country, -country_code, -availability_30, -availability_60,
+         -availability_90, -host_total_listings_count)
+```
+
+One of the things that is most time-consuming about data analysis is cleaning data. Seriously, some people report spending 60% of their project time on data cleansing alone.
+
+So, here is the first of the custom functions I mentioned earlier. I wrote a function called formatMoney that will fix the columns that are meant to be a numeric value but are irritatingly formatted with dollar symbols and commas, which stop R from knowing that it's meant to be a number. 
+
+Here is what it looks like before:
+
+```{r}
+head(irishSubset$price)
+```
+
+
+```{r}
+irishFixed = irishSubset %>%
+  mutate_at(c("price", "security_deposit", "cleaning_fee", "extra_people"), formatMoney)
+
+head(irishFixed$price)
+```
+Much better!!
+
+Of course, there is still the issue of obscene outliers that needs to be resolved. If we stick with the example of the "price" column, certain entries seem incorrect.
+
+```{r}
+paste0("The cheapest listing costs $", min(irishFixed$price), " per night and the most expensive costs $", max(irishFixed$price), " per night.")
+```
+
+So, it seems doubtful that there are completely free listings (as much as my wallet would love that) and listings that cost more than 2,400 chicken snack boxes from Supermac's.
+
+I'm going to use the interquartile range method to remove outliers, where anything 1.5 times the IQR past the first and third quartiles is considered an outlier. I wrote another custom function for this where a numeric column is passed to the function, which returns information about the outlier-defining limits. I chose to have it return information rather than just filter the data within the function because some human discretion can be helpful based on the column type.
+
+```{r}
+iqrRemoveOutliers(irishFixing$price)
+iqrRemoveOutliers(irishFixing$cleaning_fee)
+iqrRemoveOutliers(irishFixing$security_deposit)
+```
+
+Now, I know that I actually want to filter these columns so that the minimum value is greater than $0, as there is no such thing as a completely free listing on Airbnb. 
+
+Now we are going to filter the dataframe so that the outliers are removed.
+
+```{r}
+irish = irishFixing %>%
+  filter(0 < price & price < 225,
+         cleaning_fee < 110,
+         security_deposit < 375)
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+by_room_type = irish %>%
+  group_by(room_type) %>%
+  summarize(avg_price = mean(price))
+```
+
+```{r}
+ggplot(irish, aes(x = room_type, y = price)) +
+  geom_boxplot()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
