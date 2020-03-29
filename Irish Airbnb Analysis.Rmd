@@ -10,16 +10,13 @@ I spent a semester abroad at University College Dublin during my junior year of 
 
 In the interest of my Irish vacation fantasy, I chose to analyze the most recent Airbnb data from their listings in Ireland in order to inform my decision of where to stay.
 
-I want to travel on the cheaper side (hey, I'm being responsible) but definitely not as cheap as I did while an undergrad. I'd like to stay in Dublin, but I am open to staying in another county if I can get much better accomodations for the same price.
-
-I'd also like to know which regions of Ireland have the highest ratings among Airbnb tourists. If there are any significantly better rated areas, it might be worth a visit to that area.
+I want to travel on the cheaper side (hey, I'm being responsible) but definitely not as cheap as I did while an undergrad. I'd like to stay in Dublin, but I am open to staying in another county if I can get much cheaper accomodations for the same quality trip.
 
 ------
 
 I'll start by loading in some R packages that will be used throughout the project.
-
 ```{r}
-packages = c("dplyr", "ggplot2", "tidyr", "stringr")
+packages = c("dplyr", "ggplot2", "tidyr", "stringr", "lubridate")
 tmp = sapply(packages, function(p){
   if (!require(p, character.only = T)){
     install.packages(p)
@@ -27,35 +24,22 @@ tmp = sapply(packages, function(p){
   }
 })
 ```
-
 Then I will set my working directory to my GitHub repo and read in the raw data from Airbnb.
-
 ```{r}
 baseDir = normalizePath("/Users/Nicole/Documents/GitHub/IrishAirBnb")
 irishRaw = read.csv(file = paste0(baseDir, "/longlistings.csv"), strip.white = T, stringsAsFactors = F, na.strings=c("","NA"))
 ```
-
-Throughout this project, I found I needed to write a few custom functions. To save space and save the reader time, I have these functions written in a separate R file called "Irish_functions.R" and will source these functions into my current workspace so I can use them on the data.
-
-```{r}
-source(paste0(baseDir, "/Irish_functions.R"))
-```
-
 First I will inspect the Airbnb data (called "irishRaw") to make sure everything looks correct.
-
 ```{r}
 paste0("The class of the raw data is ", class(irishRaw))
 paste0("The raw data has ", dim(irishRaw)[1], " rows and ", dim(irishRaw)[2], " columns.")
 ```
-
 IrishRaw is definitely a dataframe, and there are certainly many columns that might help me plan my fake vacation.
 
 I'm going to remove some columns that I don't care about, such as URLs to images used on the listing's page or what country the listing is in (since they are all from Ireland). I also removed data that was missing values more than 30% of the listings.
-
 ```{r}
 irishRaw %>% summarize_all(funs(sum(is.na(.)) / length(.)))
 ```
-
 ```{r}
 irishSubset = irishRaw %>%
   select(-listing_url, -scrape_id, -thumbnail_url, -medium_url, -picture_url, -xl_picture_url, -host_url, -host_thumbnail_url,
@@ -63,83 +47,113 @@ irishSubset = irishRaw %>%
          -longitude, -is_location_exact, -calendar_last_scraped, -country, -country_code, -availability_30, -availability_60,
          -availability_90, -host_total_listings_count)
 ```
-
 One of the things that is most time-consuming about data analysis is cleaning data. Seriously, some people report spending 60% of their project time on data cleansing alone.
 
 So, here is the first of the custom functions I mentioned earlier. I wrote a function called formatMoney that will fix the columns that are meant to be a numeric value but are irritatingly formatted with dollar symbols and commas, which stop R from knowing that it's meant to be a number. 
 
 Here is what it looks like before:
-
 ```{r}
 head(irishSubset$price)
 ```
-
-
+I'm going to write a function to fix up this formatting, since I will be doing the same thing to multiple columns and it will save time.
 ```{r}
+formatMoney = function(x) {
+  no_dollar = str_replace(x, pattern = "[$]", replacement = "")
+  no_comma = str_replace(no_dollar, pattern = ",", replacement = "")
+  new_price = as.numeric(no_comma)
+  return(new_price)
+}
+
 irishFixed = irishSubset %>%
-  mutate_at(c("price", "security_deposit", "cleaning_fee", "extra_people"), formatMoney)
+  mutate_at(c("price", "security_deposit", "cleaning_fee"), formatMoney)
 
 head(irishFixed$price)
 ```
 Much better!!
 
 Of course, there is still the issue of obscene outliers that needs to be resolved. If we stick with the example of the "price" column, certain entries seem incorrect.
-
 ```{r}
 paste0("The cheapest listing costs $", min(irishFixed$price), " per night and the most expensive costs $", max(irishFixed$price), " per night.")
 ```
-
 So, it seems doubtful that there are completely free listings (as much as my wallet would love that) and listings that cost more than 2,400 chicken snack boxes from Supermac's.
 
-I'm going to use the interquartile range method to remove outliers, where anything 1.5 times the IQR past the first and third quartiles is considered an outlier. I wrote another custom function for this where a numeric column is passed to the function, which returns information about the outlier-defining limits. I chose to have it return information rather than just filter the data within the function because some human discretion can be helpful based on the column type.
+I'm going to use the interquartile range method to remove outliers, where anything 1.5 times the IQR past the first and third quartiles is considered an outlier. I wrote a custom function for this where a numeric column is passed to the function, which returns information about the outlier-defining limits. Now we are going to filter the dataframe so that the outliers are removed.
 
+I also don't want any listings that cost $0, as that is not realistic.
 ```{r}
-iqrRemoveOutliers(irishFixing$price)
-iqrRemoveOutliers(irishFixing$cleaning_fee)
-iqrRemoveOutliers(irishFixing$security_deposit)
+iqrRemoveOutliers = function(df, col) {
+  x = df[,col]
+  
+  iqr = IQR(x, na.rm = T)
+  firstQ = quantile(x, na.rm = T)[2]
+  thirdQ = quantile(x, na.rm = T)[4]
+  minRemove = firstQ - (1.5 * iqr)
+  maxRemove = thirdQ + (1.5 * iqr)
+  
+  filtered = df[x < maxRemove & x > minRemove & x != 0,]
+  
+  return(filtered)
+}
+
+irish = iqrRemoveOutliers(irishFixed, "price")
+
+paste0("Now the cheapest listing costs $", min(irish$price), " per night and the most expensive costs $", max(irish$price), " per night.")
 ```
+This cuts down the dataset by only a small amount, but means that I will only be looking at reasonable data.
 
-Now, I know that I actually want to filter these columns so that the minimum value is greater than $0, as there is no such thing as a completely free listing on Airbnb. 
-
-Now we are going to filter the dataframe so that the outliers are removed.
-
+First, let's decide where in Ireland I want to stay. I'm going to decide this based on a combination of average price and average rating, as well as the average rating of the location. I would prefer to travel to Dublin, but am willing to spend my vacation elsewhere if the price per night is significantly lower.
 ```{r}
-irish = irishFixing %>%
-  filter(0 < price & price < 225,
-         cleaning_fee < 110,
-         security_deposit < 375)
+by_general_region = irish %>%
+  group_by(region_parent_parent_name) %>%
+  summarize(avg_price = mean(price),
+            avg_rating = mean(review_scores_rating, na.rm = T),
+            avg_location_rating = mean(review_scores_location, na.rm = T))
+
+by_general_region
 ```
+There doesn't appear to be too much variation in the average general rating or the average location-based rating across the different regions in Ireland. There is some more distinction among the prices, but for $17 difference between the Midlands (the cheapest region) and Dublin (the most expensive), I would prefer to visit the city I like the most.
 
-
-
-
-
-
-
-
-
-
-
+Let's see what my options are now. I'll examine the neighborhoods in Dublin that have more than 200 listings to choose from, and then check out the average prices.
 ```{r}
-by_room_type = irish %>%
-  group_by(room_type) %>%
-  summarize(avg_price = mean(price))
-```
+dublin_neighborhood = irish %>%
+  filter(region_parent_parent_name == "Dublin",
+         !is.na(neighbourhood)) %>%
+  group_by(neighbourhood) %>%
+  filter(n() > 200) %>%
+  summarize(count = n(),
+            avg_price = mean(price),
+            avg_rating = mean(review_scores_rating, na.rm = T))
 
+dublin_neighborhood
+```
+Only 10 neighborhoods have more than 200 listings within them, so that narrows my choices down nicely. I am trying to be economical in my decision, so I will choose to stay in the City Center, which has a middle of the road average price and is not significantly worse in terms of the average rating.
+
+Now I must decide on the stay. I'll consider a private room since that will be cheaper than an entire space but still allows me to have privacy. I would like to spend less than average per night, and only stay somewhere with a rating above 95. I'd prefer to stay somewhere with recent reviews as well, so I know that the rating is still relevant.
 ```{r}
-ggplot(irish, aes(x = room_type, y = price)) +
-  geom_boxplot()
+six_months_ago = Sys.Date() %m-% months(6)
+
+dublin_stay = irish %>%
+  filter(neighbourhood == "City Centre",
+         room_type == "Private room",
+         price < mean(price),
+         review_scores_rating > 95) %>%
+  mutate(last_review = as.POSIXct(last_review)) %>%
+  filter(last_review > six_months_ago)
+
+dublin_stay
 ```
+Finally, I want to choose somwhere to stay with no security deposit or cleaning fee.
+```{r}
+cheap_dublin = dublin_stay %>%
+  filter(security_deposit == 0,
+         cleaning_fee == 0)
 
+cheap_dublin
+```
+How will I choose between the two? Well...
+```{r}
+print(cheap_dublin$notes[1])
+```
+Now I've found a place to stay!
 
-
-
-
-
-
-
-
-
-
-
-
+https://www.airbnb.com/rooms/24306357?source_impression_id=p3_1585523155_%2Bq1QDISWgLNGl49v
